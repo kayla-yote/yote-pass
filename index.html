@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <meta charset=utf-8>
+   </head>
+   <body>
+      <ul id=e_warnings></ul>
+      <form id=e_form>
+         Password (not saved): <input type=password id=e_passwd_annoying>
+         <br>
+         Persisted password: <input type=password id=e_passwd_persisted>
+         <br>
+         <fieldset>
+            <legend>Algorithm:</legend>
+
+            <input type=radio name=e_alg_list id=e_alg_base64ish value=generate_base64ish>
+            <label for=e_alg_base64ish>base64ish</label>
+            
+            <input type=radio name=e_alg_list id=e_alg_lowers_with_delims value=generate_lowers_with_delims checked required>
+            <label for=e_alg_lowers_with_delims>lowers_with_delims</label>
+            <br>
+            Length: <input type=text id=e_length size=4 value=14>
+            <br>
+            Strength: <input type=text id=e_approx_bit_strength size=10 disabled>
+         </fieldset>
+         <br>
+         <fieldset>
+            <legend>Site/app/email</legend>
+
+            <input type=text id=e_site size=50>
+            <br>
+            <input type=checkbox id=e_tld_toggle checked>
+            <label for=e_tld_toggle>TLD?</label>
+         </fieldset>
+      </form>
+      <hr>
+      => <input type=text id=e_generated readonly value="[error?]"> <i id=e_copied_to_clipboard></i>
+      <script>
+
+const EXPECTED_HOSTNAME = 'kayla-yote.github.io/yote-passwd';
+if (document.location.hostname != EXPECTED_HOSTNAME) {
+   const li = e_warnings.appendChild(document.createElement('li'));
+   li.textContent = `WARNING! Something fishy is up: Hostname is "${document.location.hostname}" instead of "${EXPECTED_HOSTNAME}".`;
+}
+
+// -
+
+e_passwd_persisted.value = localStorage.getItem("e_passwd_persisted") || '';
+if (e_passwd_persisted.value) {
+   console.log('Restored e_passwd_persisted from localStorage.');
+}
+
+// -
+
+const PBKDF2_PARAMS = {
+   name: 'PBKDF2',
+   salt: (new TextEncoder()).encode(EXPECTED_HOSTNAME),
+   iterations: 100000,
+   hash: 'SHA-512',
+};
+
+const LOOK_ALIKES = [
+   'O0o',
+   'Il1',
+].join('');
+const FORBIDDEN_CHARS = LOOK_ALIKES;
+const SYMBOL = '.';
+const DELIM = '-';
+
+// -
+// https://developer.mozilla.org/en-US/docs/Glossary/Base64#the_unicode_problem
+
+function bytesToBase64(bytes) {
+  const binString = String.fromCodePoint(...bytes);
+  return btoa(binString);
+}
+
+// -
+
+async function generate_base64ish(passwd_list) {
+   // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey#pbkdf2_2
+   const concat_passwd = passwd_list.join('|');
+
+   const passwd_key = await window.crypto.subtle.importKey(
+      'raw', (new TextEncoder()).encode(concat_passwd),
+      'PBKDF2', false,
+      ['deriveBits']
+   );
+
+   const chars_needed = parseInt(e_length.value);
+   const base64_chars = chars_needed - 1;
+   const base64_bits_needed = base64_chars * 6;
+   let base64_bytes_needed = Math.ceil(base64_bits_needed / 8);
+   base64_bytes_needed = Math.ceil(base64_bytes_needed / 3) * 3; // Let's not emit '=' padding.
+   const symbol_pos_bytes_needed = 1;
+   const bytes_needed = symbol_pos_bytes_needed + base64_bytes_needed;
+
+   const generated_bits = await window.crypto.subtle.deriveBits(
+      PBKDF2_PARAMS,
+      passwd_key,
+      bytes_needed * 8,
+   );
+   const generated_bytes = new Uint8Array(generated_bits);
+   const symbol_pos = generated_bytes[0] % chars_needed;
+   const generated_base64 = bytesToBase64(generated_bytes.slice(1));
+
+   let generated_passwd = generated_base64.slice(0, symbol_pos) + SYMBOL + generated_base64.slice(symbol_pos, base64_chars);
+   for (const c of FORBIDDEN_CHARS) {
+      generated_passwd = generated_passwd.replace(c, SYMBOL);
+   }
+
+   // -
+   
+   const alphabet_size = 64 - FORBIDDEN_CHARS.length + SYMBOL.length;
+   // log(alphabet_size ^^ base64_chars) = base64_chars * log(alphabet_size)
+   const bits_for_base64_chars = base64_chars * Math.log2(alphabet_size);
+   const bits_for_random_symbol_pos = Math.log2(chars_needed);
+   const bit_strength = bits_for_base64_chars + bits_for_random_symbol_pos;
+
+   return {
+      passwd: generated_passwd,
+      bit_strength,
+   };
+}
+
+async function generate_lowers_with_delims(passwd_list) {
+   // https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey#pbkdf2_2
+   const concat_passwd = passwd_list.join('|');
+
+   const passwd_key = await window.crypto.subtle.importKey(
+      'raw', (new TextEncoder()).encode(concat_passwd),
+      'PBKDF2', false,
+      ['deriveBits']
+   );
+
+   const chars_needed = parseInt(e_length.value);
+   const base64_chars = Math.ceil(chars_needed / 5 * 4);
+   const base64_bits_needed = base64_chars * 6;
+   let base64_bytes_needed = Math.ceil(base64_bits_needed / 8);
+   base64_bytes_needed = Math.ceil(base64_bytes_needed / 3) * 3; // Let's not emit '=' padding.
+   const bytes_needed = base64_bytes_needed;
+
+   const generated_bits = await window.crypto.subtle.deriveBits(
+      PBKDF2_PARAMS,
+      passwd_key,
+      bytes_needed * 8,
+   );
+   const generated_bytes = new Uint8Array(generated_bits);
+   const generated_base64 = bytesToBase64(generated_bytes);
+
+   let generated_passwd = generated_base64;
+   generated_passwd = generated_passwd.toLowerCase();
+   for (const c of FORBIDDEN_CHARS) {
+      generated_passwd = generated_passwd.replace(c, SYMBOL);
+   }
+   generated_passwd = [].map.call(generated_passwd, (c, i) => {
+      let ret = c;
+      if (i % 4 == 3) {
+         ret += DELIM;
+      }
+      return ret;
+   }).join('').slice(0, chars_needed);
+   console.assert(generated_passwd.length == chars_needed);
+
+   // -
+
+   const FORBIDDEN_LOWERS = [].filter.call(FORBIDDEN_CHARS, c => {
+      return c.search(/[a-z0-9]/) != -1;
+   }).join('');
+   console.assert(0 < FORBIDDEN_LOWERS.length, {FORBIDDEN_LOWERS});
+   console.assert(FORBIDDEN_LOWERS.length < FORBIDDEN_CHARS.length);
+   
+   const alphabet_size = 26 + 10 - FORBIDDEN_CHARS.length + SYMBOL.length;
+   // log(alphabet_size ^^ base64_chars) = base64_chars * log(alphabet_size)
+   const bits_for_base64_chars = base64_chars * Math.log2(alphabet_size);
+   const bits_for_random_symbol_pos = Math.log2(chars_needed);
+   const bit_strength = bits_for_base64_chars + bits_for_random_symbol_pos;
+
+   return {
+      passwd: generated_passwd,
+      bit_strength,
+   };
+}
+
+// -
+
+function without_prefix(s, prefix) {
+   if (s.startsWith(prefix)) return s.slice(prefix.length);
+   return s;
+}
+
+function refix_site() {
+   [
+      'https://',
+      'http://',
+      'file://',
+   ].map(p => {
+      e_site.value = without_prefix(e_site.value, p);
+   });
+   if (!e_site.value) return;
+   
+   let site = e_site.value;
+   let user_parts = site.split('@');
+   let user_part = '';
+   if (user_parts) {
+      user_part = user_parts[0] + '@';
+      user_parts = user_parts.slice(1);
+   }
+   site = user_parts.join('@');
+
+   const url = new URL('https://' + e_site.value);
+
+   let parts = url.host.split('.');
+   if (e_tld_toggle.checked) {
+      let user_parts = parts[0].split('@');
+      user_parts = user_parts.slice(0, user_parts.length-1);
+      parts = parts.slice(parts.length-2);
+      user_parts = user_parts.join('@');
+      if (user_parts) {
+         parts.unshift(user_parts);
+      }
+   }
+   e_site.value = parts.join('.');
+}
+
+// -
+
+async function regenerate() {
+   refix_site();
+
+   // -
+   
+   const form = new FormData(e_form);
+   const alg_fn_name = form.get('e_alg_list');
+   console.assert(alg_fn_name in window, alg_fn_name);
+   const fn_generate = window[alg_fn_name];
+
+   // -
+
+   const passwd_list = [
+      e_passwd_annoying.value,
+      e_passwd_persisted.value,
+      e_site.value,
+   ];
+   const generated = await fn_generate(passwd_list);
+   e_generated.value = generated.passwd;
+
+   
+   let implied_alphabet_size = 26 + 10;
+   if (generated.passwd.search(/[A-Z]/) != -1) {
+      implied_alphabet_size += 26;
+   }
+   if (generated.passwd.search(/[^a-zA-Z0-9]/) != -1) {
+      // Typeable symbols
+      implied_alphabet_size += 30;
+   }
+   const implied_bit_strength = generated.passwd.length * Math.log2(implied_alphabet_size);
+
+   e_approx_bit_strength.value = [
+      `~${Math.floor(generated.bit_strength)}`, // It's crypto, be pessimistic and `floor`!
+      `-${Math.floor(implied_bit_strength)} bits`,
+   ].join('');
+}
+
+// -
+
+e_form.addEventListener('change', regenerate);
+regenerate();
+
+// -
+
+e_generated.style.backgroundColor = '#aea';
+e_generated.addEventListener('focus', async () => {
+   e_generated.focus();
+   e_generated.select();
+   navigator.clipboard.writeText(e_generated.value);
+   console.log('Copied to clipboard!');
+
+   e_copied_to_clipboard.textContent = '(Copied to clipboard!)';
+   await new Promise(go => setTimeout(go, 1000));
+   e_copied_to_clipboard.textContent = '';
+});
+
+// -
+
+e_passwd_persisted.addEventListener('change', () => {
+   localStorage.setItem('e_passwd_persisted', e_passwd_persisted.value);
+   console.log('Saved e_passwd_persisted to localStorage.');
+});
+
+      </script>
+   </body>
+</html>
