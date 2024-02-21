@@ -14,9 +14,9 @@
       <fieldset id=e_yote_pass><legend><a href='https://github.com/kayla-yote/yote-pass'><b>Yote-Pass</b></a></legend>
          <fieldset id=e_warnings hidden><legend>Warning: Danger!</legend></fieldset>
          <form id=e_form>
-            Password (not saved): <input type=password id=e_passwd_annoying>
+            Password (not saved): <input type=password id=e_passwd_annoying> <input type=button id=e_show_passwd_annoying value=&#x1f441;>
             <br>
-            Persisted password: <input type=password id=e_passwd_persisted>
+            Persisted password: <input type=password id=e_passwd_persisted> <input type=button id=e_show_passwd_persisted value=&#x1f441;>
             <br>
             <fieldset><legend>Algorithm</legend>
                <input type=radio name=e_alg_list id=e_alg_base64ish value=generate_base64ish>
@@ -39,7 +39,9 @@
          </form>
          <hr>
          <fieldset><legend>Generated password</legend>
-            <input type=text id=e_generated readonly value="[error?]"> <i id=e_copied_to_clipboard></i>
+            <input type=text id=e_generated readonly value="[error?]">
+            <input type=button id=e_show_generated value=&#x1f441;>
+            <i id=e_copied_to_clipboard></i>
          </fieldset>
       </fieldset>
       <script>
@@ -299,6 +301,33 @@ e_generated.addEventListener('focus', async () => {
 e_passwd_persisted.addEventListener('change', () => {
    localStorage.setItem('e_passwd_persisted', e_passwd_persisted.value);
    console.log('Saved e_passwd_persisted to localStorage.');
+});
+
+// -
+
+e_show_passwd_annoying.addEventListener('click', () => {
+   const e = e_passwd_annoying;
+   if (e.type == 'password') {
+      e.type = 'text';
+   } else {
+      e.type = 'password';
+   }
+});
+e_show_passwd_persisted.addEventListener('click', () => {
+   const e = e_passwd_persisted;
+   if (e.type == 'password') {
+      e.type = 'text';
+   } else {
+      e.type = 'password';
+   }
+});
+e_show_generated.addEventListener('click', () => {
+   const e = e_generated;
+   if (e.type == 'password') {
+      e.type = 'text';
+   } else {
+      e.type = 'password';
+   }
 });
 
       </script>
