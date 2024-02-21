@@ -2,45 +2,58 @@
 <html>
    <head>
       <meta charset=utf-8>
+      
+<style>
+#e_yote_pass {
+   width: fit-content;
+}
+
+</style>
    </head>
    <body>
-      <ul id=e_warnings></ul>
-      <form id=e_form>
-         Password (not saved): <input type=password id=e_passwd_annoying>
-         <br>
-         Persisted password: <input type=password id=e_passwd_persisted>
-         <br>
-         <fieldset>
-            <legend>Algorithm:</legend>
-
-            <input type=radio name=e_alg_list id=e_alg_base64ish value=generate_base64ish>
-            <label for=e_alg_base64ish>base64ish</label>
-            
-            <input type=radio name=e_alg_list id=e_alg_lowers_with_delims value=generate_lowers_with_delims checked required>
-            <label for=e_alg_lowers_with_delims>lowers_with_delims</label>
+      <fieldset id=e_yote_pass><legend>Yote-Pass</legend>
+         <fieldset id=e_warnings hidden><legend>Warning: Danger!</legend></fieldset>
+         <form id=e_form>
+            Password (not saved): <input type=password id=e_passwd_annoying>
             <br>
-            Length: <input type=text id=e_length size=4 value=14>
+            Persisted password: <input type=password id=e_passwd_persisted>
             <br>
-            Strength: <input type=text id=e_approx_bit_strength size=10 disabled>
+            <fieldset><legend>Algorithm</legend>
+               <input type=radio name=e_alg_list id=e_alg_base64ish value=generate_base64ish>
+               <label for=e_alg_base64ish>base64ish</label>
+               
+               <input type=radio name=e_alg_list id=e_alg_lowers_with_delims value=generate_lowers_with_delims checked required>
+               <label for=e_alg_lowers_with_delims>lowers_with_delims</label>
+               <br>
+               Length: <input type=text id=e_length size=4 value=14>
+               <br>
+               Strength: <input type=text id=e_approx_bit_strength size=10 disabled>
+            </fieldset>
+            <br>
+            <fieldset><legend>Site/App/Email</legend>
+               <input type=text id=e_site size=50>
+               <br>
+               <input type=checkbox id=e_tld_toggle checked>
+               <label for=e_tld_toggle>TLD?</label>
+            </fieldset>
+         </form>
+         <hr>
+         <fieldset><legend>Generated password</legend>
+            <input type=text id=e_generated readonly value="[error?]"> <i id=e_copied_to_clipboard></i>
          </fieldset>
-         <br>
-         <fieldset>
-            <legend>Site/app/email</legend>
-
-            <input type=text id=e_site size=50>
-            <br>
-            <input type=checkbox id=e_tld_toggle checked>
-            <label for=e_tld_toggle>TLD?</label>
-         </fieldset>
-      </form>
-      <hr>
-      => <input type=text id=e_generated readonly value="[error?]"> <i id=e_copied_to_clipboard></i>
+      </fieldset>
       <script>
+
+e_yote_pass.style.backgroundColor = '#dfa';
 
 const EXPECTED_HOSTNAME = 'kayla-yote.github.io';
 if (document.location.hostname != EXPECTED_HOSTNAME) {
-   const li = e_warnings.appendChild(document.createElement('li'));
-   li.textContent = `WARNING! Something fishy is up: Hostname is "${document.location.hostname}" instead of "${EXPECTED_HOSTNAME}".`;
+   e_warnings.hidden = false;
+   let p = e_warnings.appendChild(document.createElement('div'));
+   p.textContent = `Very fishy: Hostname is "${document.location.hostname}" instead of "${EXPECTED_HOSTNAME}".`;
+   
+   e_warnings.style.backgroundColor = '#faa';
+   e_yote_pass.style.backgroundColor = '#fea';
 }
 
 // -
@@ -269,7 +282,7 @@ regenerate();
 
 // -
 
-e_generated.style.backgroundColor = '#aea';
+e_generated.style.backgroundColor = '#ae7';
 e_generated.addEventListener('focus', async () => {
    e_generated.focus();
    e_generated.select();
