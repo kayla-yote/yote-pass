@@ -37,7 +37,7 @@
       => <input type=text id=e_generated readonly value="[error?]"> <i id=e_copied_to_clipboard></i>
       <script>
 
-const EXPECTED_HOSTNAME = 'kayla-yote.github.io/yote-passwd';
+const EXPECTED_HOSTNAME = 'kayla-yote.github.io';
 if (document.location.hostname != EXPECTED_HOSTNAME) {
    const li = e_warnings.appendChild(document.createElement('li'));
    li.textContent = `WARNING! Something fishy is up: Hostname is "${document.location.hostname}" instead of "${EXPECTED_HOSTNAME}".`;
