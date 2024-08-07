@@ -2,7 +2,7 @@
 <html>
    <head>
       <meta charset=utf-8>
-      
+
 <style>
 #e_yote_pass {
    width: fit-content;
@@ -21,7 +21,7 @@
             <fieldset><legend>Algorithm</legend>
                <input type=radio name=e_alg_list id=e_alg_base64ish value=generate_base64ish>
                <label for=e_alg_base64ish>base64ish</label>
-               
+
                <input type=radio name=e_alg_list id=e_alg_lowers_with_delims value=generate_lowers_with_delims checked required>
                <label for=e_alg_lowers_with_delims>lowers_with_delims</label>
                <br>
@@ -42,6 +42,10 @@
             <input type=text id=e_generated readonly value="[error?]">
             <input type=button id=e_show_generated value=&#x1f441;>
             <i id=e_copied_to_clipboard></i>
+            <br>
+            <fieldset id=e_policy_section hidden><legend>Website's shitty policy:</legend>
+               <pre id=e_policy style='margin: 0; font-family: "Comic Sans", cursive, sans-serif;'></pre>
+            </fieldset>
          </fieldset>
       </fieldset>
       <script>
@@ -53,7 +57,7 @@ if (document.location.hostname != EXPECTED_HOSTNAME) {
    e_warnings.hidden = false;
    let p = e_warnings.appendChild(document.createElement('div'));
    p.textContent = `Very fishy: Hostname is "${document.location.hostname}" instead of "${EXPECTED_HOSTNAME}".`;
-   
+
    e_warnings.style.backgroundColor = '#faa';
    e_yote_pass.style.backgroundColor = '#fea';
 }
@@ -125,7 +129,7 @@ async function generate_base64ish(passwd_list) {
    }
 
    // -
-   
+
    const alphabet_size = 64 - FORBIDDEN_CHARS.length + SYMBOL.length;
    // log(alphabet_size ^^ base64_chars) = base64_chars * log(alphabet_size)
    const bits_for_base64_chars = base64_chars * Math.log2(alphabet_size);
@@ -184,7 +188,7 @@ async function generate_lowers_with_delims(passwd_list) {
    }).join('');
    console.assert(0 < FORBIDDEN_LOWERS.length, {FORBIDDEN_LOWERS});
    console.assert(FORBIDDEN_LOWERS.length < FORBIDDEN_CHARS.length);
-   
+
    const alphabet_size = 26 + 10 - FORBIDDEN_CHARS.length + SYMBOL.length;
    // log(alphabet_size ^^ base64_chars) = base64_chars * log(alphabet_size)
    const bits_for_base64_chars = base64_chars * Math.log2(alphabet_size);
@@ -213,7 +217,7 @@ function refix_site() {
       e_site.value = without_prefix(e_site.value, p);
    });
    if (!e_site.value) return;
-   
+
    let site = e_site.value;
    let user_parts = site.split('@');
    let user_part = '';
@@ -238,13 +242,77 @@ function refix_site() {
    e_site.value = parts.join('.');
 }
 
+function make_fuse_fn(n) {
+   const box = {i: n};
+   return () => {
+      if (box.i <= 0) throw `make_fuse_fn(${n}) blown!`;
+      box.i -= 1;
+      return true;
+   };
+}
+function* fuse_iter(n) {
+   let i = 0;
+   while (i < n) {
+      yield i;
+      i += 1;
+   }
+   throw `fuse_iter(${n}) blown!`;
+}
+
 // -
+
+function deal_with_shitty_policies(site, orig_passwd) {
+   if (site.endsWith('seattle.gov')) {
+      const policy = `
+* Password must:
+   * be 8 to 20 characters
+   * contain at least:
+      * one lowercase letter,
+      * one uppercase letter,
+      * one number and
+      * one special character,
+   * and cannot contain the first, last, or user name of the user.
+* The "." (period) character is not allowed.
+`.trim();
+      function fixup_pass(passwd) {
+         passwd = passwd.replaceAll('.','$');
+         while (passwd.length < 8) {
+            passwd = passwd + passwd;
+         }
+         const extra = [];
+         const fn_add_if_needed = (regex, char) => {
+            if (passwd.search(regex) == -1) {
+               extra.push(char);
+            }
+         };
+         fn_add_if_needed(/[A-Z]/, 'A');
+         fn_add_if_needed(/[a-z]/, 'a');
+         fn_add_if_needed(/[0-9]/, '9');
+         fn_add_if_needed(/[`~!@#$%^&*()-_=+[{\]}\\|;:'",<.>/?]/, '$');
+         passwd = extra.join('') + passwd;
+         passwd = passwd.slice(0, 20);
+         return passwd;
+      }
+
+      let wip_passwd = orig_passwd;
+      let fuse = 0;
+      for (const i of fuse_iter(100)) {
+         const was = wip_passwd;
+         wip_passwd = fixup_pass(was);
+         if (wip_passwd == was) break;
+      }
+      const compliant_passwd = wip_passwd;
+      return {orig_passwd, compliant_passwd, policy};
+   }
+
+   return null;
+}
 
 async function regenerate() {
    refix_site();
 
    // -
-   
+
    const form = new FormData(e_form);
    const alg_fn_name = form.get('e_alg_list');
    console.assert(alg_fn_name in window, alg_fn_name);
@@ -258,18 +326,29 @@ async function regenerate() {
       e_site.value,
    ];
    const generated = await fn_generate(passwd_list);
-   e_generated.value = generated.passwd;
+   console.log({generated});
 
-   
+   let passwd = generated.passwd;
+   const ugh_fixed = deal_with_shitty_policies(e_site.value, passwd);
+   if (ugh_fixed) {
+      e_policy_section.hidden = false;
+      e_policy.textContent = ugh_fixed.policy;
+      passwd = ugh_fixed.compliant_passwd;
+   } else {
+      e_policy_section.hidden = true;
+   }
+
+   e_generated.value = passwd;
+
    let implied_alphabet_size = 26 + 10;
-   if (generated.passwd.search(/[A-Z]/) != -1) {
+   if (passwd.search(/[A-Z]/) != -1) {
       implied_alphabet_size += 26;
    }
-   if (generated.passwd.search(/[^a-zA-Z0-9]/) != -1) {
+   if (passwd.search(/[^a-zA-Z0-9]/) != -1) {
       // Typeable symbols
       implied_alphabet_size += 30;
    }
-   const implied_bit_strength = generated.passwd.length * Math.log2(implied_alphabet_size);
+   const implied_bit_strength = passwd.length * Math.log2(implied_alphabet_size);
 
    e_approx_bit_strength.value = [
       `~${Math.floor(generated.bit_strength)}`, // It's crypto, be pessimistic and `floor`!
