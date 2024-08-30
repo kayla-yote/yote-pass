@@ -269,8 +269,8 @@ function deal_with_shitty_policies(site, orig_passwd) {
    * contain at least:
       * one lowercase letter,
       * one uppercase letter,
-      * one number and
-      * one special character,
+      * one number, and
+      * one special character
    * and cannot contain the first, last, or user name of the user.
 * The "." (period) character is not allowed.
 `.trim();
@@ -303,6 +303,42 @@ function deal_with_shitty_policies(site, orig_passwd) {
       }
       const compliant_passwd = wip_passwd;
       return {orig_passwd, compliant_passwd, policy};
+   }
+
+   // -
+
+   const ASS_SUFFIX = '-aS5';
+
+   function with_ass_suffix_because(desc) {
+      desc.policy.defined;
+
+      let compliant_passwd = orig_passwd + ASS_SUFFIX;
+
+      while (compliant_passwd.length < desc.min_len) {
+         compliant_passwd += ASS_SUFFIX;
+      }
+      if (desc.max_len && compliant_passwd.length > desc.max_len) {
+         compliant_passwd = compliant_passwd.slice(compliant_passwd.length - desc.max_len);
+      }
+      return {orig_passwd, compliant_passwd, policy:desc.policy};
+   };
+
+   // -
+
+   if (site.endsWith('eufy.com')) {
+      return with_ass_suffix_because({
+         policy: `
+* Password must:
+   * be 8 to 20 characters
+   * contain at least:
+      * one lowercase letter,
+      * one uppercase letter,
+      * one number, and
+      * one special character (!@#$%^&*()_-|[{]}/?.>;:)
+`.trim(),
+         min_len: 8,
+         max_len: 20,
+      });
    }
 
    return null;
